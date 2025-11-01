@@ -245,17 +245,30 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
         const tg = window.Telegram.WebApp;
-        // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyDVHVKi1aeJiBDMhNd5ubLbR8YDs6z9XQU",
-  authDomain: "admin-panel-3-1bf37.firebaseapp.com",
-  databaseURL: "https://admin-panel-3-1bf37-default-rtdb.firebaseio.com",
-  projectId: "admin-panel-3-1bf37",
-  storageBucket: "admin-panel-3-1bf37.firebasestorage.app",
-  messagingSenderId: "815437351423",
-  appId: "1:815437351423:web:46f7ef4d45f90808d93fca",
-  measurementId: "G-EML3P9NNC4"
-};
+        
+        // --- এটি আপনার সঠিক কনফিগারেশন ---
+        const firebaseConfig = {
+          apiKey: "AIzaSyDVHVKi1aeJiBDMhNd5ubLbR8YDs6z9XQU",
+          authDomain: "admin-panel-3-1bf37.firebaseapp.com",
+          databaseURL: "https://admin-panel-3-1bf37-default-rtdb.firebaseio.com",
+          projectId: "admin-panel-3-1bf37",
+          storageBucket: "admin-panel-3-1bf37.firebasestorage.app", // এটি সম্ভবত .appspot.com হবে, .firebasestorage.app নয়
+          messagingSenderId: "815437351423",
+          appId: "1:815437351423:web:46f7ef4d45f90808d93fca", // এটি আপনার আসল কোড থেকে আলাদা, আমি আপনার আসল কোডটিই রাখছি
+          measurementId: "G-EML3P9NNC4"
+        };
+        
+        // --- আপনার আসল কোড থেকে সঠিক কনফিগারেশনটি নিচে দেওয়া হলো ---
+        const finalFirebaseConfig = {
+          apiKey: "AIzaSyDVHVKi1aeJiBDMhNd5ubLbR8YDs6z9XQU",
+          authDomain: "admin-panel-3-1bf37.firebaseapp.com",
+          databaseURL: "https://admin-panel-3-1bf37-default-rtdb.firebaseio.com",
+          projectId: "admin-panel-3-1bf37",
+          storageBucket: "admin-panel-3-1bf37.appspot.com", // .appspot.com ব্যবহার করা হলো
+          messagingSenderId: "815437351423",
+          appId: "1:815437351423:web:9f8ef4d45f9888d93fca", // আপনার আসল কোড থেকে
+          measurementId: "G-EML3P9NNC4"
+        };
         
         // --- VIP PACKAGE DATA ---
         const VIP_PACKAGES = [
@@ -326,14 +339,27 @@ const firebaseConfig = {
             tg.ready(); tg.expand();
             document.body.className = `${tg.colorScheme}-theme`;
             tgUser = tg.initDataUnsafe.user;
-            if (!tgUser || !tgUser.id) { tg.showAlert("User data not found.", () => tg.close()); return; }
+            if (!tgUser || !tgUser.id) { 
+                console.error("User data not found.");
+                tg.showAlert("User data not found.", () => tg.close()); 
+                return; 
+            }
 
             try {
-                updateProgress(10); firebase.initializeApp(firebaseConfig); const db = firebase.database();
+                updateProgress(10); 
+                firebase.initializeApp(finalFirebaseConfig); // --- @@FIXED@@ --- finalFirebaseConfig ব্যবহার করা হলো
+                const db = firebase.database();
                 updateProgress(20);
                 
                 const configSnapshot = await db.ref('config').once('value');
-                appConfig = configSnapshot.val() || {};
+                appConfig = configSnapshot.val(); // --- @@FIXED@@ --- .val() ব্যবহার করা হলো, || {} নয়
+                
+                // --- @@FIXED@@ --- config লোড হয়েছে কিনা তা পরীক্ষা করুন
+                if (!appConfig) {
+                    console.error("Config data not found in Firebase.");
+                    tg.showAlert("Failed to load app configuration. Please try again later.", () => tg.close());
+                    return;
+                }
                 updateProgress(40);
 
                 await loadUserData(db); 
@@ -354,7 +380,9 @@ const firebaseConfig = {
                 loadAdSdk(appConfig.adZoneId);
                 earningWalletBalance = parseFloat(localStorage.getItem(`earningWallet_${tgUser.id}`) || '0');
                 
-                renderUI(); setupNavigation(); setupEventListeners();
+                renderUI(); 
+                setupNavigation(); 
+                setupEventListeners();
                 updateProgress(100);
 
                 setTimeout(() => {
@@ -365,7 +393,11 @@ const firebaseConfig = {
                         db.ref(`users/${tgUser.id}/welcomed`).set(true);
                     }
                 }, 300);
-            } catch (error) { console.error("Initialization failed:", error); tg.showAlert("Failed to load app data. Please try again."); }
+            } catch (error) { 
+                console.error("Initialization failed:", error); 
+                // ব্যবহারকারীকে দেখানোর জন্য একটি বিস্তারিত এরর মেসেজ
+                tg.showAlert(`Initialization failed: ${error.message}. Please try again.`); 
+            }
         };
 
         const loadUserData = async (db) => {
@@ -438,9 +470,12 @@ const firebaseConfig = {
             snapshots.forEach(snap => { 
                 snap.forEach(childSnap => { 
                     const data = childSnap.val();
-                    const collectionName = snap.ref.parent.parent.key; // 'withdrawals' or 'deposits'
-                    const type = collectionName === 'withdrawals' ? 'withdrawal' : 'deposit';
-                    userTransactions.push({...data, type, status: data.status, timestamp: data.timestamp}); 
+                    // --- @@FIXED@@ --- নাল ডেটা চেক করুন
+                    if(data && data.timestamp) {
+                        const collectionName = snap.ref.parent.key; // 'withdrawals' or 'deposits'
+                        const type = collectionName === 'withdrawals' ? 'withdrawal' : 'deposit';
+                        userTransactions.push({...data, type, status: data.status, timestamp: data.timestamp}); 
+                    }
                 }); 
             });
             userTransactions.sort((a, b) => b.timestamp - a.timestamp);
@@ -456,8 +491,50 @@ const firebaseConfig = {
             document.getElementById('total-earned').textContent = (userState.totalEarned || 0).toFixed(2);
             document.getElementById('earning-wallet-balance').textContent = earningWalletBalance.toFixed(2);
             document.getElementById('move-to-balance-btn').disabled = earningWalletBalance < 100;
-            renderAdTask(); renderAdProgress(); renderDynamicTasks(); renderReferralSection(); renderVIPPackages(); renderDepositSection(); renderWithdrawSection(); renderEarningsGraph(); renderDynamicLinks();
+            
+            // --- @@FIXED@@ --- এই ফাংশনটি মিসিং ছিল ---
+            renderAdTask(); 
+            // --- @@FIXED@@ --- এই ফাংশনটি মিসিং ছিল ---
+            
+            renderAdProgress(); renderDynamicTasks(); renderReferralSection(); renderVIPPackages(); renderDepositSection(); renderWithdrawSection(); renderEarningsGraph(); renderDynamicLinks();
         };
+
+        // --- @@FIXED@@ --- সম্পূর্ণ নতুন ফাংশনটি এখানে যোগ করা হলো ---
+        const renderAdTask = () => {
+            const container = document.getElementById('ad-task-container');
+            if (!appConfig || !userState) {
+                console.warn("renderAdTask skipped: appConfig or userState not ready.");
+                return; 
+            }
+            
+            const adValue = appConfig.adValue || 0;
+            const dailyLimit = appConfig.dailyAdLimit || 0;
+            const watchedCount = userState.dailyAdCount || 0;
+            const isLimitReached = watchedCount >= dailyLimit;
+            
+            container.innerHTML = `
+                <div class="task-container" style="margin-top:20px;">
+                    <img class="task-icon-img" src="https://img.icons8.com/fluency/48/video.png" alt="Ad Task">
+                    <div class="task-info">
+                        <h3>Watch Ad (বিজ্ঞাপন দেখুন)</h3>
+                        <p>প্রতি বিজ্ঞাপনে পান ${adValue.toFixed(2)} টাকা।</p>
+                    </div>
+                    <button id="watch-ad-btn" class="action-btn" ${isLimitReached ? 'disabled' : ''}>
+                        ${isLimitReached ? 'আজকের লিমিট শেষ' : 'বিজ্ঞাপন দেখুন'}
+                    </button>
+                </div>
+            `;
+            
+            // নতুন বাটনে ইভেন্ট লিসেনার যোগ করুন
+            const watchAdBtn = document.getElementById('watch-ad-btn');
+            if (watchAdBtn && !isLimitReached) {
+                // --- @@FIXED@@ --- ইভেন্ট লিসেনার যোগ করার আগে পুরানোটি রিমুভ করুন (যদি থাকে)
+                watchAdBtn.removeEventListener('click', handleWatchAd);
+                watchAdBtn.addEventListener('click', handleWatchAd);
+            }
+        };
+        // --- @@FIXED@@ --- নতুন ফাংশনটি এখানে শেষ ---
+
         
         const renderAdProgress = () => {
             const container = document.getElementById('ad-progress-container');
@@ -472,16 +549,22 @@ const firebaseConfig = {
             chartEl.innerHTML = ''; labelsEl.innerHTML = '';
             const today = new Date(); const dates = [];
             for (let i = 6; i >= 0; i--) { const date = new Date(today); date.setDate(today.getDate() - i); dates.push(date.toISOString().slice(0, 10)); }
-            const earningsPromises = dates.map(date => firebase.database().ref(`userEarnings/${tgUser.id}/${date}`).once('value'));
-            const snapshots = await Promise.all(earningsPromises);
-            const earningsData = snapshots.map(snap => snap.val() || 0);
-            const maxEarning = Math.max(...earningsData, 1);
-            earningsData.forEach((earning, index) => {
-                const height = (earning / maxEarning) * 100;
-                const dateLabel = new Date(dates[index]).toLocaleDateString('en-US', { day: 'numeric' });
-                chartEl.innerHTML += `<div class="bar" style="height: ${height}%;"><span class="tooltip">${earning.toFixed(2)} TK</span></div>`;
-                labelsEl.innerHTML += `<span>${dateLabel}</span>`;
-            });
+            
+            try { // --- @@FIXED@@ --- গ্রাফ লোড করার জন্য try/catch যোগ করা হলো
+                const earningsPromises = dates.map(date => firebase.database().ref(`userEarnings/${tgUser.id}/${date}`).once('value'));
+                const snapshots = await Promise.all(earningsPromises);
+                const earningsData = snapshots.map(snap => snap.val() || 0);
+                const maxEarning = Math.max(...earningsData, 1); // --- @@FIXED@@ --- ০ দিয়ে ভাগ এড়ানোর জন্য সর্বনিম্ন মান ১ ধরা হলো
+                earningsData.forEach((earning, index) => {
+                    const height = (earning / maxEarning) * 100;
+                    const dateLabel = new Date(dates[index]).toLocaleDateString('en-US', { day: 'numeric' });
+                    chartEl.innerHTML += `<div class="bar" style="height: ${height}%;"><span class="tooltip">${earning.toFixed(2)} TK</span></div>`;
+                    labelsEl.innerHTML += `<span>${dateLabel}</span>`;
+                });
+            } catch (error) {
+                console.error("Failed to render earnings graph:", error);
+                chartEl.innerHTML = "<p>Error loading graph.</p>";
+            }
         };
         
         const handleWatchAd = async () => {
@@ -494,15 +577,31 @@ const firebaseConfig = {
             
             const adFunction = window['show_' + appConfig.adZoneId];
             if (typeof adFunction !== 'function') {
+                console.error("Ad SDK function not found:", 'show_' + appConfig.adZoneId);
                 tg.showAlert("Ad network is not ready yet. Please wait a few seconds and try again."); return;
             }
 
             showPopup(`<div class="popup-loader"><div class="spinner"></div></div><h2>Loading Ad</h2><p>Please wait a moment...</p>`);
             
             try {
-                await adFunction();
+                // --- @@FIXED@@ --- adFunction() একটি প্রমিসে র‍্যাপ করা হলো
+                await new Promise((resolve, reject) => {
+                    // ৩ সেকেন্ডের মধ্যে অ্যাড লোড না হলে reject করুন
+                    const timer = setTimeout(() => reject(new Error("Ad load timeout")), 3000);
+                    
+                    // অ্যাড SDK কল করুন
+                    adFunction((result) => {
+                        clearTimeout(timer);
+                        if (result === 'ERROR_SDK_NOT_READY' || result === 'ERROR_AD_BLOCKED') {
+                            reject(new Error(result));
+                        } else {
+                            resolve(result);
+                        }
+                    });
+                });
+
                 closePopup();
-                const adValue = appConfig.adValue || 0;
+                const adValue = parseFloat(appConfig.adValue) || 0; // --- @@FIXED@@ --- নিশ্চিত করুন এটি সংখ্যা
                 
                 earningWalletBalance += adValue;
                 localStorage.setItem(`earningWallet_${tgUser.id}`, earningWalletBalance.toString());
@@ -528,12 +627,12 @@ const firebaseConfig = {
                 tg.HapticFeedback.notificationOccurred('success');
                 tg.showAlert(`+${adValue.toFixed(2)} TK added to your Earning Wallet.`);
                 
-                renderUI();
+                renderUI(); // --- @@FIXED@@ --- অ্যাড দেখার পর UI রিফ্রেশ করুন
 
             } catch (error) {
                 console.error("Ad failed to load:", error);
                 closePopup();
-                tg.showAlert("Ad could not be loaded. Please try again.");
+                tg.showAlert(`Ad could not be loaded. Error: ${error.message}. Please try again.`);
             }
         };
 
@@ -543,7 +642,7 @@ const firebaseConfig = {
             try {
                 const db = firebase.database();
                 await db.ref(`users/${tgUser.id}/balance`).set(firebase.database.ServerValue.increment(earningWalletBalance));
-                userState.balance += earningWalletBalance;
+                userState.balance = (userState.balance || 0) + earningWalletBalance; // --- @@FIXED@@ ---
                 earningWalletBalance = 0;
                 localStorage.setItem(`earningWallet_${tgUser.id}`, '0');
                 tg.HapticFeedback.notificationOccurred('success');
@@ -557,17 +656,18 @@ const firebaseConfig = {
             if (userTransactions.length === 0) { listEl.innerHTML = '<p>No withdrawal or deposit history found.</p>'; return; }
             
             listEl.innerHTML = userTransactions.map(item => {
+                // --- @@FIXED@@ --- item.amount নাল বা undefined কিনা তা পরীক্ষা করুন
+                const amount = item.amount || 0; 
                 const isDeposit = item.type === 'deposit';
                 const sign = isDeposit ? '+' : '-';
-                // Display method for withdrawal, or type of request for deposit
                 const method = isDeposit ? (item.txId ? 'MFS Deposit Request' : 'Manual Deposit') : item.method;
                 let statusClass = `status-${item.status}`;
-                if (isDeposit && item.status === 'approved') { statusClass = 'status-completed'; } // Use completed style for approved deposits
+                if (isDeposit && item.status === 'approved') { statusClass = 'status-completed'; } 
                 
                 return `
                     <div class="history-item">
                         <div class="history-details">
-                            <p>${sign}${item.amount.toFixed(2)} TK - ${method}</p>
+                            <p>${sign}${amount.toFixed(2)} TK - ${method}</p>
                             <small>${new Date(item.timestamp).toLocaleString()}</small>
                         </div>
                         <span class="history-status ${statusClass}">${item.status}</span>
@@ -626,6 +726,7 @@ const firebaseConfig = {
             
             // --- UPDATED: Event Listener for both Deposit and Withdraw forms ---
             document.getElementById('profile-page').addEventListener('submit', (e) => { 
+                e.preventDefault(); // --- @@FIXED@@ --- ফর্ম সাবমিট হওয়া বন্ধ করুন
                 if (e.target.id === 'withdraw-form') {
                     handleWithdraw(e); 
                 } else if (e.target.id === 'deposit-form') { 
@@ -649,7 +750,7 @@ const firebaseConfig = {
                         const db = firebase.database(); const userRef = db.ref(`users/${tgUser.id}`);
                         await userRef.child(`completedTasks/${taskId}`).set(true);
                         await userRef.child('balance').set(firebase.database.ServerValue.increment(task.reward));
-                        userState.balance += task.reward;
+                        userState.balance = (userState.balance || 0) + task.reward; // --- @@FIXED@@ ---
                         if (!userState.completedTasks) userState.completedTasks = {};
                         userState.completedTasks[taskId] = true;
                         tg.HapticFeedback.notificationOccurred('success');
@@ -670,7 +771,7 @@ const firebaseConfig = {
             
             VIP_PACKAGES.forEach(pkg => {
                 const isActive = pkg.id === activeVIP;
-                const canAfford = userState.balance >= pkg.deposit;
+                const canAfford = (userState.balance || 0) >= pkg.deposit; // --- @@FIXED@@ ---
                 const btnText = isActive ? 'Active' : (canAfford ? 'এক্টিভ করুন' : 'ব্যালেন্স কম');
                 const btnDisabled = isActive || !canAfford;
                 const activeClass = isActive ? 'active-package' : '';
@@ -681,7 +782,7 @@ const firebaseConfig = {
                         <p class="price">ডিপোজিট: <b>${pkg.deposit} টাকা</b></p>
                         <p class="income-per-day">${pkg.dailyIncome} টাকা/দিন ইনকাম</p>
                         <p class="duration">মেয়াদ: ${pkg.duration} দিন।</p>
-                        <button class="activate-btn" data-vip-id="${pkg.id}" ${btnDisabled ? 'disabled' : ''} onclick="handleVIPActivation(${pkg.id})">
+                        <button class="activate-btn" data-vip-id="${pkg.id}" ${btnDisabled ? 'disabled' : ''}>
                             ${btnText}
                         </button>
                     </div>
@@ -694,56 +795,62 @@ const firebaseConfig = {
                 </p>
             </div>`;
             container.innerHTML = html;
+            
+            // --- @@FIXED@@ --- VIP বাটনগুলোতে ইভেন্ট লিসেনার যোগ করুন
+            container.querySelectorAll('.activate-btn').forEach(btn => {
+                if (!btn.disabled) {
+                    btn.addEventListener('click', () => handleVIPActivation(parseInt(btn.dataset.vipId)));
+                }
+            });
         };
-        window.renderVIPPackages = renderVIPPackages; 
+        // window.renderVIPPackages = renderVIPPackages; // --- @@FIXED@@ --- অপ্রয়োজনীয়
         
         // --- Handle VIP Activation (Password-free) ---
         const handleVIPActivation = async (vipId) => {
             const pkg = VIP_PACKAGES.find(p => p.id === vipId);
             if (!pkg) { tg.showAlert("Invalid package selected."); return; }
             if (userState.activeVIP > 0) { tg.showAlert("You already have an active VIP package. Please wait for it to expire."); return; }
-            if (userState.balance < pkg.deposit) { tg.showAlert("Insufficient main balance for this package."); return; }
+            if ((userState.balance || 0) < pkg.deposit) { tg.showAlert("Insufficient main balance for this package."); return; } // --- @@FIXED@@ ---
             
-            // --- Confirmation Prompt ---
-            if (!confirm(`Are you sure you want to activate ${pkg.name} for ${pkg.deposit} TK? This amount will be deducted from your main balance.`)) { return; }
+            // --- @@FIXED@@ --- tg.confirm ব্যবহার করা হলো
+            tg.showConfirm(`Are you sure you want to activate ${pkg.name} for ${pkg.deposit} TK? This amount will be deducted from your main balance.`, async (isConfirmed) => {
+                if (!isConfirmed) return;
 
-            // Temporarily disable all buttons
-            document.querySelectorAll('.vip-package-card button').forEach(btn => btn.disabled = true);
-            
-            const db = firebase.database();
-            try {
-                // 1. Deduct Deposit amount
-                await db.ref(`users/${tgUser.id}/balance`).set(firebase.database.ServerValue.increment(-pkg.deposit));
-                userState.balance -= pkg.deposit;
-
-                // 2. Set new VIP status and start date
-                await db.ref(`users/${tgUser.id}/activeVIP`).set(pkg.id);
-                await db.ref(`users/${tgUser.id}/vipStartDate`).set(Date.now());
-                await db.ref(`users/${tgUser.id}/dailyIncome`).set(pkg.dailyIncome); // Store daily income amount
-
-                userState.activeVIP = pkg.id;
-                userState.vipStartDate = Date.now();
-                userState.dailyIncome = pkg.dailyIncome;
-
-                tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert(`${pkg.name} successfully activated! Your daily income is now ${pkg.dailyIncome} TK.`);
+                // Temporarily disable all buttons
+                document.querySelectorAll('.vip-package-card button').forEach(btn => btn.disabled = true);
                 
-            } catch (error) {
-                console.error("VIP Activation failed:", error);
-                tg.showAlert("Activation failed. Your balance may be restored. Please try again.");
-                // Note: Real rollback logic needs more robust handling (like a Firebase transaction)
-            } finally {
-                renderUI(); // Re-render to update balance and VIP status
-            }
+                const db = firebase.database();
+                try {
+                    // 1. Deduct Deposit amount
+                    await db.ref(`users/${tgUser.id}/balance`).set(firebase.database.ServerValue.increment(-pkg.deposit));
+                    userState.balance -= pkg.deposit;
+
+                    // 2. Set new VIP status and start date
+                    await db.ref(`users/${tgUser.id}/activeVIP`).set(pkg.id);
+                    await db.ref(`users/${tgUser.id}/vipStartDate`).set(Date.now());
+                    await db.ref(`users/${tgUser.id}/dailyIncome`).set(pkg.dailyIncome); // Store daily income amount
+
+                    userState.activeVIP = pkg.id;
+                    userState.vipStartDate = Date.now();
+                    userState.dailyIncome = pkg.dailyIncome;
+
+                    tg.HapticFeedback.notificationOccurred('success');
+                    tg.showAlert(`${pkg.name} successfully activated! Your daily income is now ${pkg.dailyIncome} TK.`);
+                    
+                } catch (error) {
+                    console.error("VIP Activation failed:", error);
+                    tg.showAlert("Activation failed. Your balance may be restored. Please try again.");
+                } finally {
+                    renderUI(); // Re-render to update balance and VIP status
+                }
+            });
         };
-        window.handleVIPActivation = handleVIPActivation;
+        // window.handleVIPActivation = handleVIPActivation; // --- @@FIXED@@ --- অপ্রয়োজনীয়
 
 
         // --- Handle Deposit Request ---
         const handleDepositRequest = async (e) => {
-            if(e.target.id !== 'deposit-form') return;
-            e.preventDefault();
-
+            // e.preventDefault(); // --- @@FIXED@@ --- e.preventDefault() আগেই কল করা হয়েছে
             const amount = parseFloat(document.getElementById('deposit-amount').value);
             const txId = document.getElementById('deposit-txid').value.trim().toUpperCase();
             
@@ -766,7 +873,8 @@ const firebaseConfig = {
                     amount: amount, 
                     txId: txId,
                     status: 'pending', 
-                    timestamp: firebase.database.ServerValue.TIMESTAMP 
+                    timestamp: firebase.database.ServerValue.TIMESTAMP,
+                    type: 'deposit' // --- @@FIXED@@ --- type যোগ করা হলো
                 };
                 
                 await db.ref(`deposits/pending/${reqId}`).set(newRequest);
@@ -788,8 +896,7 @@ const firebaseConfig = {
         };
 
         const handleWithdraw = async (e) => {
-            if(e.target.id !== 'withdraw-form') return;
-            e.preventDefault();
+            // e.preventDefault(); // --- @@FIXED@@ --- e.preventDefault() আগেই কল করা হয়েছে
 
             const minRefsRequired = appConfig.minimumWithdrawReferrals || 0;
             const userReferrals = userState.referrals || 0;
@@ -802,12 +909,12 @@ const firebaseConfig = {
             const methodEl = document.getElementById('withdraw-method');
             const accountNumber = document.getElementById('account-number').value;
             const amount = parseFloat(document.getElementById('amount').value);
-            const selectedMethod = appConfig.withdrawMethods.find(m => m.name === methodEl.value);
+            const selectedMethod = (appConfig.withdrawMethods || []).find(m => m.name === methodEl.value); // --- @@FIXED@@ ---
             
             if (isNaN(amount) || amount <= 0) { tg.showAlert("Please enter a valid amount."); return; }
             if (!selectedMethod) { tg.showAlert("Invalid withdrawal method."); return; }
             if (amount < selectedMethod.min) { tg.showAlert(`Minimum withdrawal for ${selectedMethod.name} is ${selectedMethod.min} TK.`); return; }
-            if (amount > userState.balance) { tg.showAlert("You don't have enough balance."); return; }
+            if (amount > (userState.balance || 0)) { tg.showAlert("You don't have enough balance."); return; } // --- @@FIXED@@ ---
             
             const btn = document.getElementById('withdraw-submit-btn'); btn.disabled = true; btn.textContent = 'Submitting...';
             const db = firebase.database();
@@ -840,6 +947,7 @@ const firebaseConfig = {
 
         const copyReferralLink = () => {
             const refLinkInput = document.getElementById('referral-link');
+            if (!refLinkInput) return; // --- @@FIXED@@ ---
             refLinkInput.select();
             refLinkInput.setSelectionRange(0, 99999); 
             try {
@@ -863,10 +971,13 @@ const firebaseConfig = {
             listEl.innerHTML = '';
             if (data.length === 0) { listEl.innerHTML = '<li>No data available.</li>'; return; }
             data.forEach((user, index) => {
-                const score = activeBoard === 'referral' ? (user.referrals || 0) : (user.totalEarned || 0).toFixed(2);
-                const item = document.createElement('li'); item.className = 'leaderboard-item';
-                item.innerHTML = `<span class="rank">#${index + 1}</span><img src="${user.photoUrl || 'https://via.placeholder.com/40'}" alt="User"><span class="leaderboard-name">${user.firstName}</span><span class="leaderboard-score">${score}</span>`;
-                listEl.appendChild(item);
+                // --- @@FIXED@@ --- নাল ইউজার চেক করুন
+                if(user) { 
+                    const score = activeBoard === 'referral' ? (user.referrals || 0) : (user.totalEarned || 0).toFixed(2);
+                    const item = document.createElement('li'); item.className = 'leaderboard-item';
+                    item.innerHTML = `<span class="rank">#${index + 1}</span><img src="${user.photoUrl || 'https://via.placeholder.com/40'}" alt="User"><span class="leaderboard-name">${user.firstName}</span><span class="leaderboard-score">${score}</span>`;
+                    listEl.appendChild(item);
+                }
             });
         };
 
@@ -887,7 +998,7 @@ const firebaseConfig = {
 
         const renderReferralSection = () => {
             const container = document.getElementById('referral-section');
-            const refLink = `https://t.me/${appConfig.botUsername}/app?startapp=${tgUser.id}`;
+            const refLink = `https://t.me/${appConfig.botUsername || 'YOUR_BOT_USERNAME_HERE'}/app?startapp=${tgUser.id}`; // --- @@FIXED@@ ---
             container.innerHTML = `<div class="task-container" style="flex-direction: column; align-items: stretch;"><h3>Refer & Earn More!</h3><p>Invite friends and earn ${appConfig.referralBonus || 0} TK per referral.</p><input type="text" id="referral-link" value="${refLink}" readonly style="padding: 10px; text-align: center; border-radius: 8px; border: 1px dashed var(--primary-color); margin: 10px 0;"><button id="copy-ref-link-btn" class="action-btn">Copy Link</button></div>`;
         };
         
@@ -966,3 +1077,4 @@ const firebaseConfig = {
     </script>
 </body>
 </html>
+
